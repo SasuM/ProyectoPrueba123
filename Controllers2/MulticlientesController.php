@@ -1,0 +1,289 @@
+<?php
+
+/**
+ * @link      http://github.com/zendframework/ZendSkeletonApplication for the canonical source repository
+ * @copyright Copyright (c) 2005-2016 Zend Technologies USA Inc. (http://www.zend.com)
+ * @license   http://framework.zend.com/license/new-bsd New BSD License
+ */
+namespace Application\Controller;
+
+use Application\Entity\Recurso;
+use Application\Entity\RecursoRol;
+use Application\Entity\UsuarioRol;
+use Zend\Mvc\Controller\AbstractActionController;
+use Zend\View\Model\ViewModel;
+use Zend\Session\Container;
+
+class MulticlientesController extends AbstractActionController {
+	/**
+	 * Entity manager.
+	 * 
+	 * @var Doctrine\ORM\EntityManager
+	 */
+	 private $entityManager;
+	 private $entityManager2;
+	 public function __construct($entityManager, $entityManager2) {
+		 $this->entityManager = $entityManager;
+		 $this->entityManager2 = $entityManager2;
+	 }
+	// Este es el action principal , cuando se carga la pagina lee el "idtab" enviado desde el url , si es nulo automaticamente le setea 107,
+	// y comienza a listar todos sus hijos en su body con sus respectivo id
+	public function indexAction() {
+		// VALIDACION PARA SABER SI EL USUARIO ES ADMINISTRADOR O NO
+		$usuarioAD = $this->identity ();
+		$fullUrl = $_SERVER['REQUEST_URI'];
+		$sessionUrl = new Container('ContainerUrl' , $sessionManager);
+		$sessionUrl->url = $fullUrl;
+		$rolusuario = $this->entityManager->getRepository ( UsuarioRol::class )->findOneByidUsuario ( $usuarioAD );
+		$rol = $rolusuario->getidRol ();
+		$idtab = $this->getEvent ()->getRouteMatch ()->getParam ( 'idtab' );
+		if ($idtab == null) {
+			$idtab = '107';
+		}
+		$roleseccion = $this->entityManager->getRepository (RecursoRol::class)->findBy ( array ('Editar' => 1,'idRecurso' => $idtab ));
+		$arrayroles = array();
+		foreach ($roleseccion as $rolseccion){
+			if($rolseccion->getidRol() != 1 && $rolseccion->getidRol() != 4 && $rolseccion->getidRol() != 5 && $rolseccion->getidRol() != 6 && $rolseccion->getidRol() != 7 && $rolseccion->getidRol() != 8 && 
+			$rolseccion->getidRol() != 9 && $rolseccion->getidRol() != 10 && $rolseccion->getidRol() != 11 && $rolseccion->getidRol() != 12 && $rolseccion->getidRol() != 13 && $rolseccion->getidRol() != 14 &&
+			$rolseccion->getidRol() != 15 && $rolseccion->getidRol() != 18 ){
+			$arrayroles[] = $rolseccion->getidRol();}
+		}
+		//SELECT DE USUARIOROL por ROL
+		$query = $this->entityManager->createQuery('SELECT u.idUsuario FROM Application\Entity\UsuarioRol u WHERE u.idRol IN (:id)');
+		$query->setParameter('id', $arrayroles);
+		$listausuarios = $query->getArrayResult();
+
+		$query2 = $this->entityManager2->createQuery('SELECT u.nombre,u.apellido FROM Application\Entity\Personal u Where u.usuarioActiveDirectory IN (:id)');
+		$query2->setParameter('id',$listausuarios);
+		$nombreusuarios = $query2->getResult();
+		$listanombres = array();
+		foreach ($nombreusuarios as $nombreusuario){
+			$listanombres[] = $nombreusuario['nombre'] . ' '. $nombreusuario['apellido'];
+		}
+		// ---------------------------------------------------------------------------------------
+		$arrayrolesusuarios = array();
+		foreach ($roleseccion as $rolseccion){
+			if($rolseccion->getidRol() == 5 || $rolseccion->getidRol()==6  || $rolseccion->getidRol()==7   || $rolseccion->getidRol()==8   || $rolseccion->getidRol()==9 
+			|| $rolseccion->getidRol()==10   || $rolseccion->getidRol()==11   || $rolseccion->getidRol()==12   || $rolseccion->getidRol()==13   || $rolseccion->getidRol()==14 
+			|| $rolseccion->getidRol()==15 || $rolseccion->getidRol()==18  ){
+			$arrayrolesusuarios[] = $rolseccion->getidRol();}
+		}
+
+		$query3 = $this->entityManager->createQuery('SELECT u.idUsuario FROM Application\Entity\UsuarioRol u WHERE u.idRol IN (:id)');
+		$query3->setParameter('id', $arrayrolesusuarios);
+		$listausuarios2 = $query3->getArrayResult();
+	
+		$query4 = $this->entityManager2->createQuery('SELECT u.nombre,u.apellido FROM Application\Entity\Personal u Where u.usuarioActiveDirectory IN (:id)');
+		$query4->setParameter('id',$listausuarios2);
+		$nombreusuariosR = $query4->getResult();
+		$listanombresR = array();
+		foreach ($nombreusuariosR as $nombreusuarioR){
+			$listanombresR[] = $nombreusuarioR['nombre'] . ' '. $nombreusuarioR['apellido'];
+		}
+		$verificarol = $this->entityManager->getRepository ( RecursoRol::class )->findBy ( array ('idRol' => $rol,'idRecurso' => $idtab ) );
+		$descargar = $verificarol [0]->getDescargar ();
+		$editar = $verificarol [0]->getEditar ();
+		$eliminar = $verificarol [0]->getEliminar ();
+		$viewModel = new ViewModel ();
+		$viewModel->setVariables ( array ('key' => 'value') )->setTerminal ( true );
+		$recurso = $this->entityManager->getRepository ( Recurso::class )->findBy ( array ('idRecursoPadre' => $idtab ), array ('DescripcionRecurso' => 'ASC' ) );
+		if (is_array ( $recurso )) {
+			$recursos = $recurso;
+		} else
+			$recursos [0] = $recurso;
+		return new ViewModel ( [ 'recursos' => $recurso,'idtab' => $idtab,'descargar' => $descargar,'editar' => $editar,'eliminar' => $eliminar,
+		'listanombres' => $listanombres, 'listanombresR' => $listanombresR] );
+		$response = $this->getResponse ();
+		return $response;
+	}
+	
+	// Funcion que lista todos los elementos de un directorio apartir de su idPadre o directorio padre
+	public function CargarHijosAction() {
+		$usuarioAD = $this->identity ();
+		
+		$rolusuario = $this->entityManager->getRepository ( UsuarioRol::class )->findOneByidUsuario ( $usuarioAD );
+		$rol = $rolusuario->getidRol ();
+		$idtab = $this->getEvent ()->getRouteMatch ()->getParam ( 'idtab' );
+		if ($idtab == null) {
+			$idtab = '107';
+		}
+		$verificarol = $this->entityManager->getRepository ( RecursoRol::class )->findBy ( array ('idRol' => $rol,'idRecurso' => $idtab ) );
+		$descargar = $verificarol [0]->getDescargar ();
+		$editar = $verificarol [0]->getEditar ();
+		$eliminar = $verificarol [0]->getEliminar ();
+		// Obtener valor de hidden
+		$id = $this->getRequest ()->getPost ( "idPadre" );
+		$recursohijo = $this->entityManager->getRepository ( Recurso::class )->findBy ( array ('idRecursoPadre' => $id ), array ('DescripcionRecurso' => 'ASC' ) );
+		if (is_array ( $recursohijo )) {
+			$recursoshijos = $recursohijo;
+		} else
+			$recursoshijos [0] = $recursohijo;
+		$cadena = "";
+		foreach ( $recursoshijos as $recursohijo ) {
+
+			
+			$fecha = $recursohijo->getFechaRecurso ();
+			$nuevafecha = date ( "d/m/Y", strtotime ( $fecha ) );
+			$cadenaadmin .= "<tr>
+			<td>".$recursohijo->getCodEstudio()."</td>
+    			<td class='ellipsis' data-toggle='tooltip' data-placement='right' title='' data-original-title='" . $recursohijo->getDescripcionRecurso () . "'>" . $recursohijo->getDescripcionRecurso () . "</td>
+				<td><div class='form-group'>
+				<select class='form-control selectipos' id='selecttipos_" . $recursohijo->getIdRecurso () . "'>" . $this->ImprimirTipoInformes ( $recursohijo->getIdRecurso () ) . "
+			</select>
+		</div></td>
+    			<td> 	<div class='form-group'>
+    							<select class='form-control' id='anios" . $recursohijo->getIdRecurso () . "'></select>
+    					</div></td>
+    			                <td><div class='row' align='middle'><div class='col-md-4'>
+								<button type='button' class='btn btn-info btn-block' onClick='DescargarMulticliente($(\"#anios" . $recursohijo->getIdRecurso () . "\").val())'><i class='fa fa-download'>
+    							</form>
+    							</i></button></div><div class='col-md-4'>
+    							<button type='button' class='btn btn-warning btn-block' data-toggle='modal' data-target='#editmulticlientes' onClick='SetEditarMulticlienteAction(" . $recursohijo->getIdRecurso () . ")'><i class='fa fa-edit'>
+    							</i></button></div><div class='col-md-4'>
+    							<button type='submit' class='btn btn-primary btn-block' onClick='EliminarRecursoMulticliente($(\"#anios" . $recursohijo->getIdRecurso () . "\").val(),\"".$recursohijo->getIdRecurso()."\")'><i class='fa fa-remove'>
+    							</i></button></div> </div></td>
+    		    </tr>";
+			$cadenausuario .= "<tr>
+			<td>".$recursohijo->getCodEstudio()."</td>
+    			<td>" . $recursohijo->getDescripcionRecurso () . "</td>
+    			<td><div class='form-group'>
+				<select class='form-control selectipos' id='selecttipos_" . $recursohijo->getIdRecurso () . "'>" . $this->ImprimirTipoInformes ( $recursohijo->getIdRecurso () ) . "
+			</select>
+		</div></td>
+    			<td> 	<div class='form-group'>
+    							<select class='form-control selectipos' id='anios" . $recursohijo->getIdRecurso () . "'>
+    					</select>
+    					</div></td>
+    			                <td><div class='row' align='middle'><div class='col-md-12'>
+								<button type='button' class='btn btn-info btn-block' onClick='DescargarMulticliente($(\"#anios" . $recursohijo->getIdRecurso () . "\").val())'><i class='fa fa-download'>
+    							</form>
+    							</i>Descargar</button></div>
+    		    </tr>";
+		}
+		if ($editar == false)
+			$this->response->setContent ( $cadenausuario );
+		else
+			$this->response->setContent ( $cadenaadmin );
+		return $this->response;
+	}
+	
+
+	public function ImprimirTipoInformes($idpadre){
+		$ruta = $this->CrearRuta($idpadre);
+		$url = 'public/upload/' . $ruta;
+		$tipos = $this->scan_dir($url);
+		$cadena = "<option value='-1'>Seleccione</option>";
+		foreach($tipos as $tipo){
+			$cadena .= "<option value='" . $tipo . "'>" . $tipo. "</option>";
+		}
+		return $cadena;
+	}
+
+	public function ImprimirAniosAction(){
+		$idInforme = $this->getRequest()->getPost("idInforme");
+		$tipo = $this->getRequest()->getPost("Tipo");
+	
+		$anios = $this->entityManager->getRepository ( Recurso::class )->findBy ( array ('idRecursoPadre' => $idInforme,'TipoInforme' => $tipo ),array ('FechaRecurso' => 'DESC'));
+
+		
+		
+		$cadena = '';
+		foreach($anios as $anio){
+			$cadena .= "<option value='" . $anio->getidRecurso() . "'>" . $anio->getRecurso(). "</option>";
+		}
+
+		
+		$this->response->setContent ( $cadena );
+		return $this->response;
+	}
+
+	public function scan_dir($dir) {
+		$ignored = array ('.','..','.svn','.htaccess');
+		$files = array ();
+		foreach ( scandir ( $dir,0) as $file ) {
+			if (in_array ( $file, $ignored ))
+				continue;
+			/* $files [$file] = filemtime ( $dir . '/' . $file ); */
+				$files [$file] = $file;
+		}
+	/* 	arsort ( $files ); */
+		$files = array_keys ( $files );
+		return ($files) ? $files : false;
+	}
+
+	// Funcion que pobla los anios en el select años (en el modal)
+	public function PoblarHijosAction() {
+		$id = $this->getRequest ()->getPost ( "idRecursoArchivos" );
+		$recursohijo = $this->entityManager->getRepository ( Recurso::class )->findBy ( array ('idRecursoPadre' => $id ), array ('DescripcionRecurso' => 'ASC' ) );
+		if (is_array ( $recursohijo )) {
+			$recursoshijos = $recursohijo;
+		} else {
+			$recursoshijos [0] = $recursohijo;
+		}
+		$cadena = "";
+		$cadenavacia = "";
+		if (empty ( $recursohijo )) {
+			$cadenavacia = "<option value='-1'>No hay Informes</option>";
+			$this->response->setContent ( $cadenavacia );
+			return $this->response;
+		} 
+		else {
+			foreach ( $recursoshijos as $recursohijo ) {
+				// var_dump($recursohijo->getIdRecurso());
+				$cadena .= "<option value='" . $recursohijo->getIdRecurso () . "'>" . $recursohijo->getDescripcionRecurso () . "</option>";
+			}
+			$this->response->setContent ( $cadena );
+			return $this->response;
+		}
+	}
+
+	public function PoblarSelectAniosAction() {
+		$id = $this->getRequest ()->getPost ( "idAnio" );
+
+		
+		$recursohijo = $this->entityManager->getRepository ( Recurso::class )->findBy ( array ('idRecursoPadre' => $id 
+		) );
+		if (is_array ( $recursohijo )) {
+			$recursoshijos = $recursohijo;
+		} else {
+			$recursoshijos [0] = $recursohijo;
+		}
+		$cadena = "";
+		$cadenavacia = "";
+			$arrayAnios = range ( date ( "Y" ),2010 );
+			$arrayAniosBD = array ();
+			foreach ( $recursoshijos as $recursohijo ) {
+				array_push ( $arrayAniosBD, $recursohijo->getRecurso () );
+			}
+			// $anios = array_diff ( $arrayAnios, $arrayAniosBD );
+			$anios = $arrayAnios;
+			foreach ( $anios as $anio ) {
+				$cadena .= "<option value='" . $anio . "'>" . $anio . "</option>";
+			}
+			$this->response->setContent ( $cadena );
+			return $this->response;
+	}
+
+	public function CrearRuta($idruta) {
+		$idPadre = $idruta;
+		$ruta = "";
+		while ( $idPadre != Null ) {
+			$recursopadre = $this->entityManager->getRepository ( Recurso::class )->findBy ( array ('idRecurso' => $idPadre 
+			) );
+			if (is_array ( $recursopadre )) {
+				$recursospadre = $recursopadre;
+			} else
+				$recursospadre [0] = $recursopadre;
+			foreach ( $recursospadre as $recursopadre ) {
+				$padre = $recursopadre->getIdRecursoPadre ();
+				$nombre = $recursopadre->getRecurso ();
+				$idPadre = $padre;
+				$ruta = $nombre . "/" . $ruta;
+			}
+			if ($idPadre == '0') {
+				break;
+			}
+		}
+		return $ruta;
+	}
+}
